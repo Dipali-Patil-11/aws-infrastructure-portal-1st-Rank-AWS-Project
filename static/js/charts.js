@@ -2,20 +2,15 @@
 Chart.defaults.color = document.documentElement.getAttribute('data-theme') === 'dark' ? '#e0e0e0' : '#212529';
 Chart.defaults.font.family = "'Inter', sans-serif";
 
-let ec2StatusChart, storageUsageChart, costChart, rdsChart, dynamoChart;
+let lambdaChart, storageUsageChart, costChart, apiChart;
 
 function updateChartsTheme() {
     const textColor = document.documentElement.getAttribute('data-theme') === 'dark' ? '#e0e0e0' : '#212529';
     Chart.defaults.color = textColor;
     
-    if(ec2StatusChart) { ec2StatusChart.options.plugins.legend.labels.color = textColor; ec2StatusChart.update(); }
-    if(rdsChart) { rdsChart.options.plugins.legend.labels.color = textColor; rdsChart.update(); }
+    if(lambdaChart) { lambdaChart.options.plugins.legend.labels.color = textColor; lambdaChart.update(); }
+    if(apiChart) { apiChart.options.plugins.legend.labels.color = textColor; apiChart.update(); }
     if(storageUsageChart) { storageUsageChart.options.plugins.legend.labels.color = textColor; storageUsageChart.update(); }
-    if(dynamoChart) {
-        dynamoChart.options.scales.x.ticks.color = textColor;
-        dynamoChart.options.scales.y.ticks.color = textColor;
-        dynamoChart.update();
-    }
     if(costChart) {
         costChart.options.scales.x.ticks.color = textColor;
         costChart.options.scales.y.ticks.color = textColor;
@@ -24,26 +19,30 @@ function updateChartsTheme() {
 }
 
 async function renderDashboardCharts() {
-    const ctxEC2 = document.getElementById('ec2Chart');
+    const ctxLambda = document.getElementById('lambdaChart');
     const ctxStorage = document.getElementById('storageChart');
     
-    if(ctxEC2 && ctxStorage) {
+    if(ctxLambda && ctxStorage) {
         try {
-            const metrics = await apiGet(`/api/monitoring/metrics?t=${new Date().getTime()}`);
-            
-            // EC2 Doughnut Chart
-            ec2StatusChart = new Chart(ctxEC2, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Running', 'Stopped'],
-                    datasets: [{
-                        data: [metrics.running_ec2, metrics.stopped_ec2],
-                        backgroundColor: ['#198754', '#dc3545'],
-                        borderWidth: 0
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+            // Lambda Runtime Doughnut Chart
+            try {
+                const lambdaMetrics = await apiGet(`/api/monitoring/lambda_stats?t=${new Date().getTime()}`);
+                lambdaChart = new Chart(ctxLambda, {
+                    type: 'doughnut',
+                    data: {
+                        labels: lambdaMetrics.labels && lambdaMetrics.labels.length > 0 ? lambdaMetrics.labels : ['No Data'],
+                        datasets: [{
+                            data: lambdaMetrics.data && lambdaMetrics.data.length > 0 ? lambdaMetrics.data : [1],
+                            backgroundColor: ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#fd7e14', '#198754', '#20c997', '#0dcaf0'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            } catch (err) {
+                console.error("Failed to load Lambda metrics:", err);
+            }
+
             
             // Storage Bar Chart (Real data)
             let storageLabels = ['No Data'];
@@ -72,55 +71,25 @@ async function renderDashboardCharts() {
                 options: { responsive: true, maintainAspectRatio: false }
             });
             
-            // RDS Status Distribution Chart
-            const ctxRDS = document.getElementById('rdsChart');
-            if (ctxRDS) {
+            // API Gateway Endpoint Types Chart
+            const ctxApi = document.getElementById('apiChart');
+            if (ctxApi) {
                 try {
-                    const rdsMetrics = await apiGet(`/api/monitoring/rds_stats?t=${new Date().getTime()}`);
-                    rdsChart = new Chart(ctxRDS, {
+                    const apiMetrics = await apiGet(`/api/monitoring/api_stats?t=${new Date().getTime()}`);
+                    apiChart = new Chart(ctxApi, {
                         type: 'doughnut',
                         data: {
-                            labels: ['Available', 'Stopped', 'Other'],
+                            labels: apiMetrics.labels && apiMetrics.labels.length > 0 ? apiMetrics.labels : ['No Data'],
                             datasets: [{
-                                data: [rdsMetrics.available || 0, rdsMetrics.stopped || 0, rdsMetrics.other || 0],
-                                backgroundColor: ['#198754', '#dc3545', '#ffc107'],
+                                data: apiMetrics.data && apiMetrics.data.length > 0 ? apiMetrics.data : [1],
+                                backgroundColor: ['#ffc107', '#17a2b8', '#dc3545'],
                                 borderWidth: 0
                             }]
                         },
                         options: { responsive: true, maintainAspectRatio: false }
                     });
                 } catch (e) {
-                    console.error("Failed to load RDS stats:", e);
-                }
-            }
-            
-            // DynamoDB Item Counts Chart
-            const ctxDynamo = document.getElementById('dynamoChart');
-            if (ctxDynamo) {
-                try {
-                    const dynamoMetrics = await apiGet(`/api/monitoring/dynamo_stats?t=${new Date().getTime()}`);
-                    let dLabels = dynamoMetrics.labels && dynamoMetrics.labels.length > 0 ? dynamoMetrics.labels : ['No Data'];
-                    let dData = dynamoMetrics.data && dynamoMetrics.data.length > 0 ? dynamoMetrics.data : [0];
-                    
-                    dynamoChart = new Chart(ctxDynamo, {
-                        type: 'bar',
-                        data: {
-                            labels: dLabels,
-                            datasets: [{
-                                label: 'Item Count',
-                                data: dData,
-                                backgroundColor: '#6f42c1',
-                                borderRadius: 4
-                            }]
-                        },
-                        options: { 
-                            responsive: true, 
-                            maintainAspectRatio: false,
-                            indexAxis: 'y' // Horizontal bar chart
-                        }
-                    });
-                } catch (e) {
-                    console.error("Failed to load DynamoDB stats:", e);
+                    console.error("Failed to load API Gateway stats:", e);
                 }
             }
             

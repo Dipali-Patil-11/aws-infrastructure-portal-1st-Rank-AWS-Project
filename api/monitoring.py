@@ -124,31 +124,39 @@ def get_ec2_cpu_metrics():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@monitor_bp.route('/rds_stats', methods=['GET'])
-def get_rds_stats():
-    rds = get_aws_client('rds')
-    if not rds: return jsonify({'error': 'Connection failed'}), 500
+@monitor_bp.route('/lambda_stats', methods=['GET'])
+def get_lambda_stats():
+    lam = get_aws_client('lambda')
+    if not lam: return jsonify({'error': 'Connection failed'}), 500
     try:
-        instances = rds.describe_db_instances().get('DBInstances', [])
-        available = sum(1 for db in instances if db['DBInstanceStatus'] == 'available')
-        stopped = sum(1 for db in instances if db['DBInstanceStatus'] == 'stopped')
-        other = len(instances) - available - stopped
-        return jsonify({'available': available, 'stopped': stopped, 'other': other})
+        functions = lam.list_functions().get('Functions', [])
+        runtimes = {}
+        for func in functions:
+            r = func.get('Runtime', 'Unknown')
+            runtimes[r] = runtimes.get(r, 0) + 1
+            
+        return jsonify({
+            'labels': list(runtimes.keys()),
+            'data': list(runtimes.values())
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@monitor_bp.route('/dynamo_stats', methods=['GET'])
-def get_dynamo_stats():
-    dynamo = get_aws_client('dynamodb')
-    if not dynamo: return jsonify({'error': 'Connection failed'}), 500
+@monitor_bp.route('/api_stats', methods=['GET'])
+def get_api_stats():
+    apigw = get_aws_client('apigateway')
+    if not apigw: return jsonify({'error': 'Connection failed'}), 500
     try:
-        tables = dynamo.list_tables().get('TableNames', [])
-        labels = []
-        data = []
-        for t in tables[:5]:
-            desc = dynamo.describe_table(TableName=t)['Table']
-            labels.append(t)
-            data.append(desc.get('ItemCount', 0))
-        return jsonify({'labels': labels, 'data': data})
+        apis = apigw.get_rest_apis().get('items', [])
+        endpoint_types = {}
+        for api in apis:
+            types = api.get('endpointConfiguration', {}).get('types', ['UNKNOWN'])
+            for t in types:
+                endpoint_types[t] = endpoint_types.get(t, 0) + 1
+                
+        return jsonify({
+            'labels': list(endpoint_types.keys()),
+            'data': list(endpoint_types.values())
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

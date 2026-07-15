@@ -86,9 +86,9 @@
 <div class="row g-4">
     <div class="col-md-6">
         <div class="card h-100">
-            <div class="card-header fw-bold py-3"><i class="fas fa-chart-pie me-2"></i>EC2 Status Distribution</div>
+            <div class="card-header fw-bold py-3"><i class="fas fa-chart-pie me-2"></i>Lambda Runtime Distribution</div>
             <div class="card-body" style="height: 300px;">
-                <canvas id="ec2Chart"></canvas>
+                <canvas id="lambdaChart"></canvas>
             </div>
         </div>
     </div>
@@ -105,9 +105,9 @@
 <div class="row g-4 mt-1 mb-4">
     <div class="col-md-6">
         <div class="card h-100">
-            <div class="card-header fw-bold py-3"><i class="fas fa-chart-pie me-2 text-warning"></i>RDS Status Distribution</div>
+            <div class="card-header fw-bold py-3"><i class="fas fa-chart-pie me-2 text-warning"></i>API Gateway Endpoint Types</div>
             <div class="card-body" style="height: 300px;">
-                <canvas id="rdsChart"></canvas>
+                <canvas id="apiChart"></canvas>
             </div>
         </div>
     </div>
@@ -126,12 +126,7 @@
 <script>
     document.addEventListener("DOMContentLoaded", async () => {
         try {
-            const metrics = await apiGet('/api/monitoring/metrics');
-            document.getElementById('dash-ec2').innerText = metrics.running_ec2;
-            document.getElementById('dash-s3').innerText = metrics.s3_buckets;
-            document.getElementById('dash-region').innerText = metrics.region;
-            
-            // Render charts
+            await loadDashboardMetrics();
             renderDashboardCharts();
         } catch(e) {
             console.error("Dashboard init error", e);

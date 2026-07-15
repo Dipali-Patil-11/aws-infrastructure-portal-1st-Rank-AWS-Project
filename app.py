@@ -35,6 +35,11 @@ app.register_blueprint(cost_bp, url_prefix='/api/cost')
 app.register_blueprint(rds_bp, url_prefix='/api/rds')
 app.register_blueprint(dynamodb_bp, url_prefix='/api/dynamodb')
 
+import time
+@app.context_processor
+def inject_timestamp():
+    return {'timestamp': int(time.time())}
+
 
 # --- Frontend Routes ---
 
