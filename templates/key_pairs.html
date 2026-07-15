@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}Key Pairs{% endblock %}
+{% block page_title %}Key Pairs{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-3">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-key me-2"></i>Key Pairs</h5>
+        <div>
+            <button class="btn btn-outline-secondary me-2" onclick="loadKPs()"><i class="fas fa-sync-alt"></i> Refresh</button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModal"><i class="fas fa-plus"></i> Create Key Pair</button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="kp-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Key Name</th>
+                        <th>Type</th>
+                        <th>Fingerprint</th>
+                        <th>Creation Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="createModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold">Create Key Pair</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label class="form-label">Key Pair Name</label>
+            <input type="text" class="form-control" id="kpName" required>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitCreate()"><i class="fas fa-check"></i> Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadKPs() {
+        const tbody = document.querySelector('#kp-table tbody');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+        try {
+            const data = await apiGet('/api/key_pairs/list');
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No key pairs found.</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(kp => {
+                html += `
+                    <tr>
+                        <td class="fw-bold">${kp.name}</td>
+                        <td><span class="badge bg-secondary">${kp.type}</span></td>
+                        <td><span class="text-muted font-monospace" style="font-size: 0.8rem">${kp.fingerprint}</span></td>
+                        <td>${kp.creation_date}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteKP('${kp.name}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Error: ${e.message}</td></tr>`;
+        }
+    }
+
+    async function submitCreate() {
+        const name = document.getElementById('kpName').value;
+        if(!name) return showToast('Error', 'Name required', 'error');
+        
+        try {
+            bootstrap.Modal.getInstance(document.getElementById('createModal')).hide();
+            const res = await apiPost('/api/key_pairs/create', { key_name: name });
+            showToast('Success', 'Key Pair created. Downloading private key...');
+            
+            // Trigger download of the .pem file
+            const blob = new Blob([res.key_material], { type: 'application/x-pem-file' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${res.key_name}.pem`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            setTimeout(loadKPs, 1500);
+        } catch (e) { showToast('Error', e.message, 'error'); }
+    }
+
+    async function deleteKP(name) {
+        if(!confirm(`Are you sure you want to delete key pair ${name}?`)) return;
+        try {
+            await apiDelete('/api/key_pairs/delete', { key_name: name });
+            showToast('Success', 'Key Pair deleted');
+            setTimeout(loadKPs, 1500);
+        } catch (e) { showToast('Error', e.message, 'error'); }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadKPs);
+</script>
+{% endblock %}

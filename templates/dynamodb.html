@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block page_title %}DynamoDB Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">DynamoDB Tables</h4>
+    <button class="btn btn-primary" onclick="loadDynamoDB()"><i class="fas fa-sync-alt me-2"></i>Refresh</button>
+</div>
+
+<div class="row g-4" id="dynamodb-container">
+    <div class="col-12 text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2 text-muted">Fetching tables from AWS...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function formatBytes(bytes, decimals = 2) {
+    if (!+bytes) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+async function loadDynamoDB() {
+    const container = document.getElementById('dynamodb-container');
+    container.innerHTML = `
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Fetching tables from AWS...</p>
+        </div>
+    `;
+    
+    try {
+        const tables = await apiGet('/api/dynamodb/list');
+        
+        if (tables.error) {
+            container.innerHTML = `<div class="col-12"><div class="alert alert-danger">${tables.error}</div></div>`;
+            return;
+        }
+
+        if (tables.length === 0) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-info d-flex align-items-center glass border-0" role="alert">
+                        <i class="fas fa-info-circle fa-2x me-3 text-info"></i>
+                        <div>
+                            <h5 class="mb-1 fw-bold">No DynamoDB Tables Found</h5>
+                            <div>No tables exist in your current region.</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        tables.forEach(table => {
+            const statusColor = table.status === 'ACTIVE' ? 'success' : 'warning';
+            
+            html += `
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm glass border-0">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h5 class="card-title fw-bold text-primary mb-1">${table.name}</h5>
+                                    <span class="badge bg-${statusColor} bg-opacity-25 text-${statusColor} border border-${statusColor} rounded-pill">
+                                        <i class="fas fa-circle me-1" style="font-size: 0.5rem; vertical-align: middle;"></i>${table.status}
+                                    </span>
+                                </div>
+                                <div class="bg-primary bg-opacity-10 p-2 rounded text-primary">
+                                    <i class="fas fa-table fa-lg"></i>
+                                </div>
+                            </div>
+                            
+                            <ul class="list-unstyled mb-0 small text-muted">
+                                <li class="mb-2"><i class="fas fa-list-ol me-2"></i><strong>Items:</strong> ${table.item_count}</li>
+                                <li class="mb-2"><i class="fas fa-hdd me-2"></i><strong>Size:</strong> ${formatBytes(table.size_bytes)}</li>
+                                <li><i class="far fa-clock me-2"></i><strong>Created:</strong> ${table.creation_date}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        
+    } catch (e) {
+        container.innerHTML = `<div class="col-12"><div class="alert alert-danger">Error loading DynamoDB tables: ${e}</div></div>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadDynamoDB);
+</script>
+{% endblock %}

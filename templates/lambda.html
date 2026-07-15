@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Lambda Automation{% endblock %}
+{% block page_title %}Serverless Functions (Lambda){% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-3">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-bolt me-2 text-warning"></i>Lambda Functions</h5>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadFunctions()"><i class="fas fa-sync-alt"></i> Refresh</button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="lambda-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Function Name</th>
+                        <th>Runtime</th>
+                        <th>State</th>
+                        <th>Last Modified</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadFunctions() {
+        const tbody = document.querySelector('#lambda-table tbody');
+        try {
+            const data = await apiGet('/api/lambda/list');
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No Lambda functions found.</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(fn => {
+                html += `
+                    <tr>
+                        <td class="fw-bold">${fn.name}</td>
+                        <td><span class="badge bg-secondary">${fn.runtime}</span></td>
+                        <td><span class="badge bg-success">${fn.state}</span></td>
+                        <td class="text-muted"><small>${new Date(fn.last_modified).toLocaleString()}</small></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" title="Invoke"><i class="fas fa-play"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Error: ${e.message}</td></tr>`;
+        }
+    }
+    document.addEventListener("DOMContentLoaded", loadFunctions);
+</script>
+{% endblock %}

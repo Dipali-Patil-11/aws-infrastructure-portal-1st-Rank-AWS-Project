@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}API Gateway{% endblock %}
+{% block page_title %}API Gateway Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-3">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-project-diagram me-2 text-info"></i>REST APIs</h5>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadApis()"><i class="fas fa-sync-alt"></i> Refresh</button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="apigw-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>API Name</th>
+                        <th>API ID</th>
+                        <th>Description</th>
+                        <th>Created Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadApis() {
+        const tbody = document.querySelector('#apigw-table tbody');
+        try {
+            const data = await apiGet('/api/api_gateway/list');
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">No APIs found.</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(api => {
+                html += `
+                    <tr>
+                        <td class="fw-bold">${api.name}</td>
+                        <td><span class="text-muted font-monospace">${api.id}</span></td>
+                        <td>${api.description}</td>
+                        <td class="text-muted"><small>${api.created}</small></td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-danger">Error: ${e.message}</td></tr>`;
+        }
+    }
+    document.addEventListener("DOMContentLoaded", loadApis);
+</script>
+{% endblock %}

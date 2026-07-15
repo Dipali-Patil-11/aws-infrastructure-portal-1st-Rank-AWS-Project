@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}About{% endblock %}
+{% block page_title %}About Project{% endblock %}
+
+{% block content %}
+<div class="card p-5 border-0 shadow-sm">
+    <div class="text-center mb-5">
+        <i class="fab fa-aws fa-5x text-primary mb-3"></i>
+        <h2 class="fw-bold">Cloud Infrastructure Automation & Monitoring Portal</h2>
+        <p class="text-muted fs-5">Final Year B.Tech Capstone Project</p>
+    </div>
+    
+    <div class="row g-5">
+        <div class="col-md-6">
+            <h5 class="fw-bold border-bottom pb-2 mb-3">Technology Stack</h5>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item bg-transparent"><i class="fab fa-python text-info me-3"></i> Python (Flask)</li>
+                <li class="list-group-item bg-transparent"><i class="fab fa-js text-warning me-3"></i> JavaScript (Fetch API, Chart.js)</li>
+                <li class="list-group-item bg-transparent"><i class="fab fa-html5 text-danger me-3"></i> HTML5 & Bootstrap 5</li>
+                <li class="list-group-item bg-transparent"><i class="fas fa-cogs text-secondary me-3"></i> Boto3 SDK</li>
+            </ul>
+        </div>
+        <div class="col-md-6">
+            <h5 class="fw-bold border-bottom pb-2 mb-3">AWS Services Integrated</h5>
+            <div class="d-flex flex-wrap gap-2">
+                <span class="badge bg-primary fs-6">Amazon EC2</span>
+                <span class="badge bg-success fs-6">Amazon S3</span>
+                <span class="badge bg-info text-dark fs-6">Amazon DynamoDB</span>
+                <span class="badge bg-danger fs-6">Amazon SNS</span>
+                <span class="badge bg-warning text-dark fs-6">AWS Lambda</span>
+                <span class="badge bg-secondary fs-6">Amazon API Gateway</span>
+                <span class="badge bg-dark fs-6">Amazon CloudWatch</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% block title %}EC2 Management{% endblock %}
+{% block page_title %}EC2 Instance Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-3">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-server me-2"></i>Instances</h5>
+        <div>
+            <button class="btn btn-outline-secondary me-2" onclick="loadInstances()"><i class="fas fa-sync-alt"></i> Refresh</button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#launchModal"><i class="fas fa-plus"></i> Launch Instance</button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="ec2-table">
+                <thead class="table-light">
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>Name</th>
+                        <th>Instance ID</th>
+                        <th>Type</th>
+                        <th>State</th>
+                        <th>Public IP</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2">Loading Instances...</div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-transparent py-3">
+        <div class="d-flex gap-2">
+            <span class="text-muted mt-2 me-2">Bulk Actions:</span>
+            <button class="btn btn-sm btn-success bulk-btn" data-action="start"><i class="fas fa-play"></i> Start</button>
+            <button class="btn btn-sm btn-warning bulk-btn" data-action="stop"><i class="fas fa-stop"></i> Stop</button>
+            <button class="btn btn-sm btn-info bulk-btn text-white" data-action="restart"><i class="fas fa-redo"></i> Restart</button>
+            <button class="btn btn-sm btn-danger bulk-btn" data-action="terminate"><i class="fas fa-trash"></i> Terminate</button>
+        </div>
+    </div>
+</div>
+
+<!-- Launch Modal -->
+<div class="modal fade" id="launchModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title fw-bold"><i class="fas fa-rocket me-2"></i>Launch EC2 Instance</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="launchForm">
+            <div class="mb-3">
+                <label class="form-label text-muted">Instance Name</label>
+                <input type="text" class="form-control" name="name" required placeholder="My Web Server">
+            </div>
+            <div class="mb-3">
+                <label class="form-label text-muted">AMI ID</label>
+                <input type="text" class="form-control" name="ami" value="ami-02b1e663aa8e2a28a" required>
+                <small class="text-muted">Default: Amazon Linux 2 (ap-south-1)</small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label text-muted">Instance Type</label>
+                <select class="form-select" name="instance_type">
+                    <option value="t2.micro">t2.micro (Free Tier)</option>
+                    <option value="t3.micro">t3.micro</option>
+                    <option value="t2.small">t2.small</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label text-muted">Key Pair (Optional)</label>
+                <input type="text" class="form-control" name="key_pair" placeholder="Existing Key Pair Name">
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitLaunch()"><i class="fas fa-rocket"></i> Launch</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadInstances() {
+        const tbody = document.querySelector('#ec2-table tbody');
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+        
+        try {
+            const data = await apiGet('/api/ec2/list');
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No instances found.</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            data.forEach(inst => {
+                let badgeClass = 'bg-secondary';
+                if(inst.state === 'running') badgeClass = 'bg-success';
+                else if(inst.state === 'stopped') badgeClass = 'bg-danger';
+                else if(inst.state === 'pending') badgeClass = 'bg-warning text-dark';
+                
+                html += `
+                    <tr>
+                        <td><input type="checkbox" class="inst-checkbox" value="${inst.id}"></td>
+                        <td class="fw-bold">${inst.name}</td>
+                        <td><span class="text-muted font-monospace" style="font-size:0.9rem">${inst.id}</span></td>
+                        <td>${inst.type}</td>
+                        <td><span class="badge ${badgeClass}">${inst.state}</span></td>
+                        <td>${inst.public_ip}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" title="Start" onclick="executeAction('start', ['${inst.id}'])"><i class="fas fa-play"></i></button>
+                            <button class="btn btn-sm btn-outline-warning" title="Stop" onclick="executeAction('stop', ['${inst.id}'])"><i class="fas fa-stop"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" title="Terminate" onclick="executeAction('terminate', ['${inst.id}'])"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger">Error: ${e.message}</td></tr>`;
+        }
+    }
+
+    async function submitLaunch() {
+        const form = document.getElementById('launchForm');
+        const formData = new FormData(form);
+        const payload = Object.fromEntries(formData.entries());
+        
+        try {
+            bootstrap.Modal.getInstance(document.getElementById('launchModal')).hide();
+            showToast('Info', 'Initiating instance launch...', 'success');
+            await apiPost('/api/ec2/launch', payload);
+            showToast('Success', 'Instance launched successfully!', 'success');
+            setTimeout(loadInstances, 2000);
+        } catch (e) {
+            showToast('Error', 'Launch failed: ' + e.message, 'error');
+        }
+    }
+
+    async function executeAction(action, instanceIds) {
+        if(instanceIds.length === 0) {
+            showToast('Warning', 'No instances selected.', 'error');
+            return;
+        }
+        
+        if(action === 'terminate' && !confirm(`Are you sure you want to terminate ${instanceIds.length} instance(s)?`)) return;
+        
+        try {
+            await apiPost('/api/ec2/action', { action, instance_ids: instanceIds });
+            showToast('Success', `Action '${action}' executed successfully.`, 'success');
+            setTimeout(loadInstances, 2000);
+        } catch (e) {
+            showToast('Error', `Action failed: ` + e.message, 'error');
+        }
+    }
+
+    // Bulk selection logic
+    document.getElementById('selectAll').addEventListener('change', function(e) {
+        document.querySelectorAll('.inst-checkbox').forEach(cb => cb.checked = e.target.checked);
+    });
+
+    document.querySelectorAll('.bulk-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const action = this.getAttribute('data-action');
+            const selected = Array.from(document.querySelectorAll('.inst-checkbox:checked')).map(cb => cb.value);
+            executeAction(action, selected);
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", loadInstances);
+</script>
+{% endblock %}

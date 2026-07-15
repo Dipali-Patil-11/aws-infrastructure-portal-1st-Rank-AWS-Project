@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% block title %}S3 Management{% endblock %}
+{% block page_title %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-0">Amazon Simple Storage Service (S3)</h2>
+    <div>
+        <button class="btn btn-outline-secondary me-2" onclick="loadBuckets()"><i class="fas fa-sync-alt"></i></button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModal" style="background-color: #5555ff; border: none;">
+            <i class="fas fa-plus"></i> Create bucket
+        </button>
+    </div>
+</div>
+
+<div class="row g-4" id="s3-cards-container">
+    <div class="col-12 text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-2 text-muted">Loading buckets...</div>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="createModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content glass">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title fw-bold">Create New Bucket</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label class="form-label text-muted">Bucket Name</label>
+            <input type="text" class="form-control" id="bucketName" placeholder="my-unique-bucket-name">
+            <small class="text-muted">Must be globally unique.</small>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-muted">Region</label>
+            <select class="form-select" id="bucketRegion">
+                <option value="ap-south-1" selected>ap-south-1 (Mumbai)</option>
+                <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                <option value="us-west-2">us-west-2 (Oregon)</option>
+                <option value="eu-west-1">eu-west-1 (Ireland)</option>
+            </select>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitCreate()"><i class="fas fa-check"></i> Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadBuckets() {
+        const container = document.getElementById('s3-cards-container');
+        container.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">Loading buckets...</div></div>';
+        
+        try {
+            const data = await apiGet('/api/s3/list');
+            if(data.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center py-5 text-muted">No buckets found.</div>';
+                return;
+            }
+            
+            let html = '';
+            for (const b of data) {
+                // We fetch files for each bucket to show stats and list them
+                let filesHtml = '';
+                let numFiles = 0;
+                let totalSize = 0;
+                
+                try {
+                    const files = await apiGet(`/api/s3/files?bucket=${b.name}`);
+                    numFiles = files.length;
+                    for (const f of files) {
+                        totalSize += f.size;
+                        const kbSize = (f.size / 1024).toFixed(1);
+                        filesHtml += `
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom file-item">
+                                <div><i class="far fa-file-alt text-muted me-2"></i> ${f.key} <span class="text-muted" style="font-size: 0.85em;">(${kbSize} KB)</span></div>
+                                <div>
+                                    <button class="btn btn-sm text-primary" onclick="downloadFile('${b.name}', '${f.key}')" title="Download"><i class="fas fa-download"></i></button>
+                                    <button class="btn btn-sm text-danger" onclick="deleteFile('${b.name}', '${f.key}')" title="Delete"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                } catch(e) {
+                    filesHtml = `<div class="text-danger small py-2">Error loading files</div>`;
+                }
+                
+                const totalKb = (totalSize / 1024).toFixed(1);
+                
+                html += `
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 shadow-sm border-0" style="border-radius: 10px;">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="fw-bold mb-0 text-primary" style="word-break: break-all;">
+                                    <i class="fas fa-archive text-warning me-2"></i>${b.name}
+                                </h5>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteBucket('${b.name}')">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                            <div class="text-muted small mb-4">
+                                Region: ${b.region} | Created: ${b.creation_date.split(' ')[0]}
+                            </div>
+                            
+                            <div class="row text-center mb-4">
+                                <div class="col-6 border-end">
+                                    <div class="fw-bold">${numFiles} Files</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="fw-bold">${totalKb} KB Space used</div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-muted small mb-2">Upload Files to Bucket</div>
+                            <div class="upload-drop-zone p-4 text-center mb-4" style="background-color: var(--sidebar-hover); border: 2px dashed var(--border-color); border-radius: 8px; cursor: pointer;" onclick="document.getElementById('file-input-${b.name}').click()">
+                                <i class="fas fa-cloud-upload-alt fa-2x mb-2 text-secondary"></i>
+                                <div>Upload or Drop Files Here</div>
+                                <input type="file" id="file-input-${b.name}" class="d-none" onchange="handleFileUpload(event, '${b.name}')">
+                            </div>
+                            
+                            <div class="file-list" style="max-height: 200px; overflow-y: auto;">
+                                ${filesHtml || '<div class="text-muted text-center py-3">Bucket is completely empty.</div>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            container.innerHTML = html;
+        } catch(e) {
+            container.innerHTML = `<div class="col-12 text-center py-5 text-danger">Error: ${e.message}</div>`;
+        }
+    }
+
+    async function handleFileUpload(event, bucketName) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('bucket_name', bucketName);
+        formData.append('file', file);
+        
+        showToast('Info', `Uploading ${file.name}...`, 'success');
+        try {
+            const response = await fetch('/api/s3/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Upload failed');
+            showToast('Success', data.message);
+            loadBuckets();
+        } catch (e) {
+            showToast('Error', e.message, 'error');
+        }
+    }
+
+    async function downloadFile(bucketName, key) {
+        try {
+            const data = await apiGet(`/api/s3/download_file?bucket=${bucketName}&key=${key}`);
+            if(data.url) {
+                window.open(data.url, '_blank');
+            }
+        } catch (e) {
+            showToast('Error', 'Download failed: ' + e.message, 'error');
+        }
+    }
+
+    async function deleteFile(bucketName, key) {
+        if(!confirm(`Delete file ${key}?`)) return;
+        try {
+            await apiDelete('/api/s3/delete_file', { bucket: bucketName, key: key });
+            showToast('Success', 'File deleted');
+            loadBuckets();
+        } catch (e) { showToast('Error', e.message, 'error'); }
+    }
+
+    async function submitCreate() {
+        const name = document.getElementById('bucketName').value;
+        const region = document.getElementById('bucketRegion').value;
+        if(!name) { showToast('Error', 'Bucket name required', 'error'); return; }
+        
+        try {
+            bootstrap.Modal.getInstance(document.getElementById('createModal')).hide();
+            await apiPost('/api/s3/create', { bucket_name: name, region: region });
+            showToast('Success', 'Bucket created successfully');
+            loadBuckets();
+        } catch (e) { showToast('Error', e.message, 'error'); }
+    }
+
+    async function deleteBucket(name) {
+        if(!confirm(`Are you sure you want to delete bucket ${name}? It must be empty.`)) return;
+        try {
+            await apiDelete('/api/s3/delete', { bucket_name: name });
+            showToast('Success', 'Bucket deleted');
+            loadBuckets();
+        } catch (e) { showToast('Error', e.message, 'error'); }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadBuckets);
+</script>
+{% endblock %}
